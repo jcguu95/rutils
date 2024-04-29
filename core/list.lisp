@@ -139,12 +139,13 @@
   "Like DOLIST but iterate over 2 items of the PLIST at once,
    onsidered KEY and VAL. Asserts proper PLIST."
   (once-only (plist)
-    (with-gensyms (tail)
+    (with-gensyms (tail rest)
       `(progn
          ;; (assert (plistp ,plist) ,plist "~A is not a proper plist" ,plist)
          (do ((,tail ,plist (cddr ,tail)))
              ((null ,tail) ,rez)
-           (destructuring-bind (,key ,val &rest ,(gensym)) ,tail
+           (destructuring-bind (,key ,val &rest ,rest) ,tail
+             (declare (ignorable ,rest))
              ,@body))))))
 
 (defun assoc1 (item alist &key default key (test nil testp) (test-not nil notp))
