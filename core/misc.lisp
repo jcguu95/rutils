@@ -4,7 +4,7 @@
 (named-readtables:in-readtable rutils-readtable)
 (eval-when (:compile-toplevel)
   (declaim #.+default-opts+))
-(declaim (inline or2 and2 xor2 void true))
+(declaim (inline or2 and2 xor2 true))
 
 
 ;;; predicates and other logical operations
