@@ -38,6 +38,9 @@
           (error "Can't abbreviate a special-operator ~a" ',long))
          ((fboundp ',long)
           (setf (fdefinition ',short) (fdefinition ',long))
+          ;; Migrate the setf definitions as well if any.
+          (when (fboundp '(setf ,long))
+            (setf (fdefinition '(setf ,short)) (function (setf ,long))))
           #+ccl (setf (ccl:arglist ',short) (ccl:arglist ',long))
           ,(when lambda-list
             `(define-setf-expander ,short ,lambda-list
