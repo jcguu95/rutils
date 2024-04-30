@@ -29,13 +29,13 @@
 (deftest tree-size ()
   (should be = 0
           (tree-size '()))
-  (should be = 1
-          (tree-size '(:foo)))
   (should be = 2
+          (tree-size '(:foo)))
+  (should be = 3
           (tree-size '(:foo :bar)))
-  (should be = 4
+  (should be = 6
           (tree-size '(:foo (:bar :baz :foo))))
-  (should be = 5
+  (should be = 7
           (tree-size '(:foo (:bar :baz :foo) :bar))))
 
 (deftest tree-depth ()
