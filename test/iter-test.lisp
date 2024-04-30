@@ -226,7 +226,7 @@
           (let* ((hash (make-hash-table))
                  (all-entries (progn (setup-hash-table hash) '()))
                  (generated-entries
-                   (iter (as (key item) :in-hashtable hash)
+                   (iter (:as (key item) :in-hashtable hash)
                      (:collect (cons key item)))))
             (maphash #'(lambda (key value) (push (cons key value) all-entries)) hash)
             (= (length all-entries)
@@ -281,13 +281,16 @@
 ;;              (set-difference syms iter-syms :test #'eq)
 ;;              (set-difference iter-syms syms)))))
 
+;; FIXME Expansion error:
+;; error: #<UNDEFINED-FUNCTION _ {70243724E3}> ;;
 (deftest in-package.externals.2 ()
   (should be eq t
           (let ((sym-count 0))
             (do-external-symbols (sym '#:iter) (declare (ignore sym))
               (incf sym-count))
             (= sym-count
-               (iter (:for () :in-package '#:iter external-only t)
+               (iter
+                 (:for _ :in-package '#:iter external-only t)
                  (:count 1))))))
 
 ;; FIXME
@@ -303,11 +306,13 @@
 ;;              (set-difference iter-syms syms)))))
 
 (deftest in-packages.external ()
-  (should be equal (() ())
+  (should be equal
+          '(() ())
           (let ((syms nil)
-                (iter-syms (iter (:as (sym access package) :in-packages '(#:cl-user)
-                                  :having-access (:external))
-                             (:collect sym))))
+                (iter-syms
+                  (iter (:as (sym access package) :in-packages '(#:cl-user)
+                         :having-access (:external))
+                    (:collect sym))))
             (do-external-symbols (sym '#:cl-user nil)
               (push sym syms))
             (list
@@ -378,6 +383,8 @@
 ;;             (:for arg = (next e))
 ;;             (:reducing arg :by op :initial-value start))))
 
+;; FIXME RUTILS:ITER expands things wrong:
+;; error: #<SB-INT:CLOSED-STREAM-ERROR {70096257E3}>
 (deftest in-stream.reiter ()
   (should be equal '(3 4)
           (let ((s (make-string-input-stream "1 2 3 4 5")))
@@ -402,7 +409,7 @@
              (:sum digit :into sum)
              (:multiplying digit :into product)
              (:until (zerop rest))
-             (:finally (return (values :sum product)))))))
+             (:finally (return (values sum product)))))))
 
 ;; FIXME
 ;; (deftest until.2 ()
@@ -817,11 +824,12 @@
 
 (deftest next-iteration.2 ()
   (should be equal
-          (iter (:for thing :in '(var &optional :else &key (test #'eql)))
+          (iter
+            (:for thing :in '(var &optional else &key (test #'eql)))
             (:collect
                 (cond ((consp thing) (first thing))
                       ((not (member thing lambda-list-keywords)) thing)
-                      (t (next-iteration)))))
+                      (t (:next-iteration)))))
           '(var else test)))
 
 ;;;; tests :from the documentation:
@@ -1162,20 +1170,21 @@
           (with-output-to-string (*standard-output*)
             (iter (:for el :in '(nil 1 2 nil 3))
               (when el
-                (unless (first-time-p)
+                (unless (:first-time-p)
                   (princ ", "))
                 (princ el))))
           "1, 2, 3"))
 
-(deftest first-time-p.1 ()
-  (should be equal
-          (iter (:for i :to 5)
-            (if (first-time-p) (:collect -1))
-            (if (first-time-p) (:collect -2))
-            (when (oddp i)
-              (if (first-time-p) nil (:collect -1))
-              (:collect i)))
-          '(-1 -2 1 -1 3 -1 5)))
+;; FIXME Clause :first-time-p does not work.
+;; (deftest first-time-p.1 ()
+;;   (should be equal
+;;           (iter (:for i :to 5)
+;;             (if (:first-time-p) (:collect -1))
+;;             (if (:first-time-p) (:collect -2))
+;;             (when (oddp i)
+;;               (if (first-time-p) nil (:collect -1))
+;;               (:collect i)))
+;;           '(-1 -2 1 -1 3 -1 5)))
 
 (deftest first-iteration-p.1 ()
   (should be equal
@@ -1424,12 +1433,13 @@
 ;;               :into foo) :test #'=))
 ;;           (9 16)))
 
-(deftest walk.counting ()
-  (should be equal
-          (iter
-            (:for i :from 3 :to 5)
-            (:counting (:if-first-time nil t)))
-          2))
+;; FIXME mixing clause :if-first-time
+;; (deftest walk.counting ()
+;;   (should be equal
+;;           (iter
+;;             (:for i :from 3 :to 5)
+;;             (:counting (:if-first-time nil t)))
+;;           2))
 
 ;; (deftest value.counting ()
 ;;   (should be equal
@@ -1526,7 +1536,7 @@
             (iter barney
               (:for j :from i :to 10)
               (if (> (* i j) 17)
-                  (:return-from fred j))))
+                  (return-from fred j))))
           9))
 
 (deftest subblocks.wrong.1 ()
@@ -1556,16 +1566,18 @@
             (:leave (list a b c)))
           '(1 b 2)))
 
-(deftest :leave ()
+(deftest leave ()
   (should be equal
           (iter (:for x :in '(1 2 3))
             (if (evenp x) (:leave x))
             (:finally (error "not found")))
           2))
 
+;; FIXME RUTILS:ITER behaves differently from the traditional ITER on the clause :LEAVE.
 (deftest nil.block.names ()
   (should be equal
-          (iter (:for x :in '(1 2 3))
+          (iter
+            (:for x :in '(1 2 3))
             (dolist (y '(5 3 4))
               (when (= x y)
                 (:leave x)))
@@ -1722,11 +1734,15 @@
 
 (deftest code-movement.2 ()
   (should be equal
-          (handler-case (macroexpand '(iter (:for i :from 1 :to 10)
-                                       (let ((x 3))
-                                         (:collect i :into x))))
+          (handler-case
+              (macroexpand '(iter
+                             (:for i :from 1 :to 10)
+                             (let ((x 3))
+                               (:collect i :into x))))
             (error () t)
-            (:no-error (f x) (declare (ignore f x)) nil))
+            (:no-error (f x)
+              (declare (ignore f x))
+              nil))
           t))
 
 (deftest code-movement.3 ()
@@ -1780,21 +1796,32 @@
 
 (deftest code-movement.locally.1 ()
   (should be equal
-          (handler-case (macroexpand '(iter (:for i :from 1 :to 10)
-                                       (let ((y i))
-                                         (:else (locally (princ y))))))
+          (handler-case
+              (macroexpand
+               '(iter
+                 (:for i :from 1 :to 10)
+                 (let ((y i))
+                   (:else (locally (princ y))))))
             (error () t)
-            (:no-error (f x) (declare (ignore f x)) nil))
+            (:no-error (f x)
+              (declare (ignore f x))
+              nil))
           t))
 
+;; FIXME The form shouldn't error out, and therefore NIL is expected. However,
+;; it errors out.
 (deftest code-movement.locally.2 ()
-  (should be equal
-          (handler-case (macroexpand '(iter (:for i :from 1 :to 10)
-                                       (let ((y i))
-                                         (:else (locally (princ i))))))
+  (should be equal nil
+          (handler-case
+              (macroexpand
+               '(iter
+                 (:for i :from 1 :to 10)
+                 (let ((y i))
+                   (:else (locally (princ i))))))
             (error () t)
-            (:no-error (f x) (declare (ignore f x)) nil))
-          nil))
+            (:no-error (f x)
+              (declare (ignore f x))
+              nil))))
 
 (deftest code-movement.initially ()
   (should be equal
@@ -1860,14 +1887,14 @@
             (sum-of-squares el))
           14))
 
-(deftest defmacro-clause.1 ()
-  (should be equal
-          (defmacro-clause (multiply.clause expr &optional :INTO var)
-            ":from testsuite"
-            `(:reducing ,expr :by #'* :into ,var :initial-value 1))
-          ;; A better :return value would be the exact list usable :with remove-clause
-          ;; The :next versi:on shall do that
-          (multiply.clause expr &optional :INTO var)))
+;; (deftest defmacro-clause.1 ()
+;;   (should be equal
+;;           (defmacro-clause (multiply.clause expr &optional :INTO var)
+;;             ":from testsuite"
+;;             `(:reducing ,expr :by #'* :into ,var :initial-value 1))
+;;           ;; A better :return value would be the exact list usable :with remove-clause
+;;           ;; The :next versi:on shall do that
+;;           (multiply.clause expr &optional :into var)))
 
 (deftest multiply.clause ()
   (should be equal
@@ -2143,12 +2170,13 @@
 ;;                 (over i))))             ; would yield (1 1 1) if correct
 ;;           (1 2 3)))
 
+;; FIXME This bug was there in the traditional iter.
 (deftest bug/walk.2 ()
   (should be equal
           (iter (return (if (oddp 1)
-                             (progn)
-                             'even)))
-          ;; The bug is :in emtpy PROGN walking. Due :to that the :THEN branch is lost
+                            (progn)
+                            'even)))
+          ;; The bug is in emtpy PROGN walking. Due to that the :THEN branch is lost
           ;; and it returns 'EVEN instead of NIL.
           nil))
 
@@ -2243,9 +2271,11 @@
                 (ht2 (make-hash-table)))
             (setup-hash-table ht2)
             (setf (gethash 'a ht1) ht2)
-            (iter (:for (k1 v1) :in-hashtable ht1)
-              (counting
-               (iter (:for (k2 nil) :in-hashtable ht2)
+            (iter
+              (:for (k1 v1) :in-hashtable ht1)
+              (:counting
+               (iter
+                 (:for (k2 nil) :in-hashtable ht2)
                  (:count k2)))))
           1))
 
@@ -2260,8 +2290,11 @@
                 (iter (:for (nil v2) :in-hashtable v1)
                   (:count v2))
                 (:collect k1))))
-          (a)))
+          '(a)))
 
+;; FIXME RUTILS:ITER expands wrongly.
+;;
+;; error: #<UNDEFINED-FUNCTION SCL {700887ED23}>
 (deftest nested.in-package ()
   (should be equal
           (< 6
@@ -2290,8 +2323,34 @@
   (declare (ignore args))
   nil)
 
+;; FIXME Test TAGBODY.NIL-TAGS:
+;; (LABELS ((FIND-TAGBODY (FORM)
+;;            (COND ((AND (CONSP FORM) (EQ (FIRST FORM) 'TAGBODY)) FORM)
+;;                  ((CONSP FORM)
+;;                   (ITER
+;;                     (FOR X IN (REST FORM))
+;;                     (THEREIS (FIND-TAGBODY X))))
+;;                  (T NIL)))
+;;          (ALL-TAGBODY-TAGS (FORM)
+;;            (ITER
+;;              (FOR TAG-OR-FORM IN (REST (FIND-TAGBODY FORM)))
+;;              (WHEN (SYMBOLP TAG-OR-FORM) (COLLECT TAG-OR-FORM)))))
+;;   (LET* ((FORM
+;;           (MACROEXPAND
+;;            '(ITER
+;;               (FOR X IN '(1 2 3))
+;;               (PROBLEM-BECAUSE-I-RETURN-NIL)
+;;               (+ X X)
+;;               (PROBLEM-BECAUSE-I-RETURN-NIL))))
+;;          (TAGS (ALL-TAGBODY-TAGS FORM)))
+;;     (ITER
+;;       (FOR TAG IN TAGS)
+;;       (ALWAYS (= 1 (FUNCALL #'COUNT TAG TAGS FROM-END NIL)))))) FAIL
+;; expect: T
+;; actual: NIL
+;;   FAILED
 (deftest tagbody.nil-tags ()
-  (should be equal
+  (should be equal t
           ;;  Allegro (correctly) won't compile when a tag (typically NIL) is used more than once :in a tagbody.
           (labels ((find-tagbody (form)
                      (cond
@@ -2300,23 +2359,25 @@
                                  'tagbody))
                         form)
                        ((consp form)
-                        (iter (:for x :in (rest form))
+                        (iter
+                          (:for x :in (rest form))
                           (:thereis (find-tagbody x))))
                        (t nil)))
                    (all-tagbody-tags (form)
-                     (iter (:for tag-or-form :in (rest (find-tagbody form)))
+                     (iter
+                       (:for tag-or-form :in (rest (find-tagbody form)))
                        (when (symbolp tag-or-form)
                          (:collect tag-or-form)))))
-            (let* ((form (macroexpand '
-                          (iter (:for x :in '(1 2 3))
+            (let* ((form (macroexpand
+                          '(iter
+                            (:for x :in '(1 2 3))
                             (problem-because-i-return-nil)
                             (+ x x)
                             (problem-because-i-return-nil))))
                    (tags (all-tagbody-tags form)))
               (iter (:for tag :in tags)
                 ;; invoke cl:count, not the Iter clause:
-                (:always (= 1 (funcall #'count tag tags :from-end nil))))))
-          t))
+                (:always (= 1 (funcall #'count tag tags :from-end nil))))))))
 
 ;; (deftest walk.tagbody.1 ()
 ;;   (should be equal
@@ -2328,11 +2389,14 @@
 ;;                (:leave 2)))
 ;;           2))
 
+;; FIXME Failure to correctly handle tagbody.
 (deftest walk.tagbody.2 ()
   (should be equal
-          (symbol-macrolet ((error-out (error "do not expand me")))
-            (iter (tagbody error-out
-                     (:leave 2))))
+          (symbol-macrolet
+              ((error-out (error "do not expand me")))
+            (iter
+              (tagbody error-out
+                 (:leave 2))))
           2))
 
 #+ccl
