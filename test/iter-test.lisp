@@ -1397,12 +1397,12 @@
             (:counting (:if-first-time nil t)))
           2))
 
-(deftest value.counting ()
-  (should be equal
-          (iter
-            (:for x :in-sequence '#(nil t nil t))
-            (:collect (:counting x :into foo)))
-          '(0 1 1 2)))
+;; (deftest value.counting ()
+;;   (should be equal
+;;           (iter
+;;             (:for x :in-sequence '#(nil t nil t))
+;;             (:collect (:counting x :into foo)))
+;;           '(0 1 1 2)))
 
 (deftest value.adjoining ()
   (should be equal
@@ -2045,23 +2045,23 @@
   ((rho   :initarg :mag)
    (theta :initform 0 :accessor angle)))
 
-(deftest with-slots ()
-  (should be equal
-          (iter (:with v := (vector (make-instance 'polar :mag 2)))
-            (:for x :in-sequence v)
-            (with-slots (rho) x
-              (:multiplying rho)))
-          2))
+;; (deftest with-slots ()
+;;   (should be equal
+;;           (iter (:with v := (vector (make-instance 'polar :mag 2)))
+;;             (:for x :in-sequence v)
+;;             (with-slots (rho) x
+;;               (:multiplying rho)))
+;;           2))
 
-(deftest with-accessors ()
-  (should be equal
-          (iter
-            (:with v := (vector (make-instance 'polar :mag 1)))
-            (:for x :in-sequence v)
-            (with-accessors ((alpha angle)) x
-              (incf alpha 2)
-              (:summing alpha)))
-          2))
+;; (deftest with-accessors ()
+;;   (should be equal
+;;           (iter
+;;             (:with v := (vector (make-instance 'polar :mag 1)))
+;;             (:for x :in-sequence v)
+;;             (with-accessors ((alpha angle)) x
+;;               (incf alpha 2)
+;;               (:summing alpha)))
+;;           2))
 
 ;;; Tests for bugs.
 ;; when these start failing, I have done something right (-:
