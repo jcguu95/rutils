@@ -1491,8 +1491,8 @@
           (let ((ar #2a((1 2 3)
                         (4 5 6)
                         (7 8 9))))
-            (iter (:for i :below (array-dimensi:on ar 0))
-              (iter (:for j :below (array-dimensi:on ar 1))
+            (iter (:for i :below (array-dimension ar 0))
+              (iter (:for j :below (array-dimension ar 1))
                 (:collect (aref ar i j)))))
           nil))
 
@@ -1501,8 +1501,8 @@
           (let ((ar #2a((1 2 3)
                         (4 5 6)
                         (7 8 9))))
-            (iter outer (:for i :below (array-dimensi:on ar 0))
-              (iter (:for j :below (array-dimensi:on ar 1))
+            (iter outer (:for i :below (array-dimension ar 0))
+              (iter (:for j :below (array-dimension ar 1))
                 (:in outer (:collect (aref ar i j))))))
           '(1 2 3 4 5 6 7 8 9)))
 
@@ -1836,7 +1836,7 @@
         (index (gensym "INDEX")))
     `(progn
        (:with ,vect := ,v)
-       (:for ,index :from 0 :below (array-dimensi:on ,vect 0))
+       (:for ,index :from 0 :below (array-dimension ,vect 0))
        (:for ,var := (aref ,vect ,index)))))
 
 (deftest in-whole-vector.clause ()
@@ -1862,7 +1862,7 @@
 ;;          (kwd (if iter:generate ':generate 'for)))
 ;;      `(progn
 ;;         (:with ,vect := ,v)
-;;         (:with ,end := (array-dimensi:on ,vect 0))
+;;         (:with ,end := (array-dimension ,vect 0))
 ;;         (:with ,index := -1)
 ;;         (,kwd ,var :next (progn (incf ,index)
 ;;                                (if (>= ,index ,end) (:terminate))
@@ -1887,7 +1887,7 @@
 ;;   (progn
 ;;     (iter:defclause-sequence IN-WHOLE-VECTOR.seq INDEX-OF-WHOLE-VECTOR
 ;;       :access-fn 'aref
-;;       :size-fn '#'(lambda (v) (array-dimensi:on v 0))
+;;       :size-fn '#'(lambda (v) (array-dimension v 0))
 ;;       :sequence-type 'vector
 ;;       :element-type t
 ;;       :element-doc-string
