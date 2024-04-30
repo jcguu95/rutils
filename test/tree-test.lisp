@@ -7,7 +7,15 @@
 
 
 (deftest dotree ()
-  (should be equal '(5 4 3 2 1)
+  ;; 0th subtree (1 (2 3) (4 5)) first => 1
+  ;; 1st subtree 1               first => 1
+  ;; 2nd subtree (2 3)           first => 2
+  ;; 3rd subtree 2               first => 2
+  ;; 4th subtree 3               first => 3
+  ;; 5th subtree (4 5)           first => 4
+  ;; 6th subtree 4               first => 4
+  ;; 7th subtree 5               first => 5
+  (should be equal '(5 4 4 3 2 2 1 1)
           (let (rez)
             (dotree (el '(1 (2 3) (4 5)) rez)
               (push (first (mklist el)) rez)))))
