@@ -23,7 +23,7 @@
           (maptree #'1+ '(1 (2 3) (4 5)))))
 
 (deftest mapleaves ()
-  (should be equal '(1 (2 4) (4 6))
+  (should be equal '(2 (3 4) (5 6))
           (mapleaves #'1+ '(1 (2 3) (4 5)))))
 
 (deftest tree-size ()
