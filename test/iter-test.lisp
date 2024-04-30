@@ -1,6 +1,30 @@
 ;;;;; Test suite for RUTILSX ITER
 ;;;;; see LICENSE file for permissions
 
+;;; Original Test Cases
+;;;
+;;; NIL
+
+
+
+
+
+
+
+;;;
+
+
+
+
+
+
+
+;;; Copyright (c) 2024 Jin-Cheng Guu <jcguu95@gmail.com>
+;;; What's below are tests taken from the traditional ITERATE system.
+;;; https://gitlab.common-lisp.net/iterate/iterate/-/blob/master/iterate-test.lisp
+;;; (commit: 8f3f239d0efd67a827bf7c78df08d43f676a7302)
+;;; It has its own license.
+
 ;;; Test cases for Iterate.
 
 ;;; Copyright (c) 2003 Andreas Fuchs <asf@boinkor.net>
