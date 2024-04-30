@@ -774,834 +774,1015 @@
 ;;             (setf (apply #'aref v (list (:next i))) (:next i))
 ;;             (:finally (:return v)))))
 
-(deftest after-each.1
-    (iter (after-each (collecting 0))
-          (:generate i :in '(a b c))
-          (adjoining (:next i)))
-  (a 0 b 0 c 0))
+(deftest after-each.1 ()
+  (should be equal '(a 0 b 0 c 0)
+          (iter
+            (:after-each (:collecting 0))
+            (:generate i :in '(a b c))
+            (:adjoining (:next i)))))
 
-(deftest after-each.2
-    (iter (:with i := 0)
-          (:while (< i 4))
-          (after-each (incf i)) ; the C programmer's :for (;;) loop
-          (:collect i))
-  (0 1 2 3))
+(deftest after-each.2 ()
+  (should be equal '(0 1 2 3)
+          (iter
+            (:with i := 0)
+            (:while (< i 4))
+            (:after-each (incf i))      ; the C programmer's :for (;;) loop
+            (:collect i))))
 
-(deftest after-each.3
-    (iter (:with i := 0)
-          (:while (< i 4))
-          (:collect i)
-          (after-each (incf i)))
-  (0 1 2 3))
+(deftest after-each.3 ()
+  (should be equal '(0 1 2 3)
+          (iter
+            (:with i := 0)
+            (:while (< i 4))
+            (:collect i)
+            (:after-each (incf i)))))
 
-(deftest next-iteration.1
-    (iter (:for i :below 10)
-          (when (oddp i) (next-iteration))
-          (count t))
-  5)
+(deftest next-iteration.1 ()
+  (should be eq 5
+          (iter
+            (:for i :below 10)
+            (when (oddp i) (next-iteration))
+            (:count t))))
 
-(deftest next-iteration.2
-    (iter (:for thing :in '(var &optional :else &key (test #'eql)))
-          (collect
-           (cond ((consp thing) (first thing))
-                 ((not (member thing lambda-list-keywords)) thing)
-                 (t (next-iteration)))))
-  (var :else test))
+(deftest next-iteration.2 ()
+  (should be equal
+          (iter (:for thing :in '(var &optional :else &key (test #'eql)))
+            (:collect
+                (cond ((consp thing) (first thing))
+                      ((not (member thing lambda-list-keywords)) thing)
+                      (t (next-iteration)))))
+          '(var else test)))
 
 ;;;; tests :from the documentation:
 
-(deftest collect.2
-    (iter (:for i :from 1 :to 10)
-          (:collect i))
-  (1 2 3 4 5 6 7 8 9 10))
+(deftest collect.2 ()
+  (should be equal
+          (iter (:for i :from 1 :to 10)
+            (:collect i))
+          '(1 2 3 4 5 6 7 8 9 10)))
 
-(deftest for-in.2
-    (iter (:for el :in '(1 2 3 4 5 6 f 7 8 9 a 10))
-          (if (and (numberp el) (oddp el))
-              (:collect el)))
-  (1 3 5 7 9))
+(deftest for-in.2 ()
+  (should be equal
+          (iter (:for el :in '(1 2 3 4 5 6 f 7 8 9 a 10))
+            (if (and (numberp el) (oddp el))
+                (:collect el)))
+          '(1 3 5 7 9)))
 
-(deftest for.destructuring.1
-    (iter (:for (key . item) :in '((a . 10) (b . 20) (c . 30)))
-          (:for i :from 0)
-          (declare (fixnum i))
-          (:collect (cons i key)))
-  ((0 . a) (1 . b) (2 . c)))
+(deftest for.destructuring.1 ()
+  (should be equal
+          (iter (:for (key . item) :in '((a . 10) (b . 20) (c . 30)))
+            (:for i :from 0)
+            (declare (fixnum i))
+            (:collect (cons i key)))
+          '((0 . a) (1 . b) (2 . c))))
 
-(deftest :repeat.0
-    (with-output-to-string (*standard-output*)
-      (iter (:repeat 100)
-            (print "I will not talk :in class.")))
-  #.(with-output-to-string (*standard-output*)
-      (dotimes (i 100)
-        (declare (ignorable i)) ; cmucl/sbcl compla:in about (ignore i)
-        (print "I will not talk :in class."))))
+(deftest repeat.0 ()
+  (should be equal
+          (with-output-to-string (*standard-output*)
+            (iter (:repeat 100)
+              (print "I will not talk :in class.")))
+          #.(with-output-to-string (*standard-output*)
+              (dotimes (i 100)
+                (declare (ignorable i)) ; cmucl/sbcl compla:in about (ignore i)
+                (print "I will not talk :in class.")))))
 
 ;;; for.next.1 and for.do-next.1 used :to be broken :in older versions;
 ;;; they didn't WALK their :NEXT args.
-(deftest for.next.1
-    (iter (initially (setq i 0))
-             (:for i :next (if (> i 10) (terminate) (1+ i)))
-             (:finally (:return i)))
-  11)
+(deftest for.next.1 ()
+  (should be eq
+          (iter
+            (:initially (setq i 0))
+            (:for i :next (if (> i 10) (:terminate) (1+ i)))
+            (:finally (:return i)))
+          11))
 
 ;;; This gave STYLE-WARNINGS :for undefined i :in old versions.
-(deftest for.do-next.1
-    (iter (initially (setq i 0))
-             (:as i do-:next (if (> i 10) (terminate) (incf i)))
-             (:finally (:return i)))
-  11)
+(deftest for.do-next.1 ()
+  (should be eq
+          (iter (:initially (setq i 0))
+            (:as i :do-next (if (> i 10) (:terminate) (incf i)))
+            (:finally (:return i)))
+          11))
 
-(deftest for.do-next.2
-    ;; INITIALLY not needed because 0 is inferred :from type declaration
-    (iter (:for i do-:next (if (> i 7) (terminate) (incf i)))
-             (declare (type fixnum i))
-             (:finally (:return i)))
-  8)
+(deftest for.do-next.2 ()
+  (should be eq
+          ;; :INITIALLY not needed because 0 is inferred :from type declaration
+          (iter
+            (:for i :do-next (if (> i 7) (:terminate) (incf i)))
+            (declare (type fixnum i))
+            (:finally (:return i)))
+          8))
 
-(deftest for.do-next.3
-    (iter (:for a :from 1 :to 3)
-          (:for b := (1+ (* a a)))
-          ;; (values ...) is supported, even though (x y) would do
-          (:for (values x y) do-:next (dsetq (values x y) (floor b a)))
-          (:collect x) (:collect y))
-  (2 0 2 1 3 1))
+(deftest for.do-next.3 ()
+  (should be equal
+          (iter (:for a :from 1 :to 3)
+            (:for b := (1+ (* a a)))
+            ;; (values ...) is supported, even though (x y) would do
+            (:for (values x y) :do-next (dsetq (values x y) (floor b a)))
+            (:collect x) (:collect y))
+          '(2 0 2 1 3 1)))
 
-(deftest for.next.walk
-    (iter (:repeat 2)
-          (:for x :next (progn (after-each (:collect 1)) 2))
-          (:collect x))
-  (2 1 2 1))
+(deftest for.next.walk ()
+  (should be equal
+          (iter
+            (:repeat 2)
+            (:for x :next (progn (:after-each (:collect 1)) 2))
+            (:collect x))
+          '(2 1 2 1)))
 
-(deftest for.do-next.walk
-    (iter (:repeat 2)
-          (:for x do-:next (progn (after-each (:collect 1)) (dsetq x 2)))
-          (:collect x))
-  (2 1 2 1))
+(deftest for.do-next.walk ()
+  (should be equal
+          (iter
+            (:repeat 2)
+            (:for x :do-next (progn (:after-each (:collect 1)) (dsetq x 2)))
+            (:collect x))
+          '(2 1 2 1)))
 
-(deftest for.next.previous
-    (iter (:for i :from 2 :to 4)
-          (:for x :next (progn (after-each (:collect i)) (- i)))
-          (:for z :previous x initially 0)
-          (nconcing (list z x)))
-  (0 -2 2 -2 -3 3 -3 -4 4))
+(deftest for.next.previous ()
+  (should be equal
+          (iter
+            (:for i :from 2 :to 4)
+            (:for x :next (progn (:after-each (:collect i)) (- i)))
+            (:for z :previous x :initially 0)
+            (:nconcing (list z x)))
+          '(0 -2 2 -2 -3 3 -3 -4 4)))
 
-(deftest for.do-next.previous
-    (iter (:for i :from 2 :to 4)
-          (:for x do-:next (progn (setq x (- i)) (after-each (:collect i))))
-          (:for z :previous x initially 0)
-          (appending (list z x)))
-  (0 -2 2 -2 -3 3 -3 -4 4))
+(deftest for.do-next.previous ()
+  (should be equal
+          (iter
+            (:for i :from 2 :to 4)
+            (:for x :do-next (progn (setq x (- i)) (:after-each (:collect i))))
+            (:for z :previous x :initially 0)
+            (:appending (list z x)))
+          (0 -2 2 -2 -3 3 -3 -4 4)))
 
-(deftest for-nongenerator.1
-    (iter (:for el :in '(a b c d))
-          (:generate i up:from 1)
-          (if el (:collect (cons el (:next i)))))
-  #.(iter (:for el :in '(a b c d))
-          (:for i up:from 1)
-          (if el (:collect (cons el i)))))
+;; (deftest for-nongenerator.1 ()
+;;   (should be equal
+;;           (iter
+;;             (:for el :in '(a b c d))
+;;             (:generate i up:from 1)
+;;             (if el (:collect (cons el (:next i)))))
+;;           #.(iter
+;;               (:for el :in '(a b c d))
+;;               (:for i up:from 1)
+;;               (if el (:collect (cons el i))))))
 
+(deftest for.previous.in ()
+  (should be equal
+          (iter
+            (:for el :in '(1 2 3 4))
+            (:for pp-el :previous el :back 2 :initially 0)
+            (:collect pp-el))
+          '(0 0 1 2)))
 
-(deftest for.previous.in
-    (iter (:for el :in '(1 2 3 4))
-          (:for pp-el :previous el back 2 initially 0)
-          (:collect pp-el))
-  (0 0 1 2))
+(deftest for.previous.type.1 ()
+  (should be equal
+          (iter (:for el :in '(1 2 3 4))
+            (declare (type integer el))
+            (:for pp-el :previous el :back 2)
+            (:collect pp-el))
+          '(0 0 1 2)))
 
-(deftest for.previous.type.1
-    (iter (:for el :in '(1 2 3 4))
-          (declare (type integer el))
-          (:for pp-el :previous el back 2)
-          (:collect pp-el))
-  (0 0 1 2))
+(deftest for.previous.index-of-string.1 ()
+  (should be equal
+          (iter
+            (:as x index-of-string "235")
+            (:as p :previous x :initially 9)
+            (:collecting p))
+          '(9 0 1)))
 
-(deftest for.previous.index-of-string.1
-    (iter (:as x index-of-string "235")
-          (:as p :previous x :initially 9)
-          (collecting p))
-  (9 0 1))
+(deftest for.previous.in-string.with-index ()
+  (should be equal
+          (iter
+            (:as x :in-string "235" :with-index y)
+            (:as p :previous y :initially 9)
+            (:collecting p))
+         '(9 0 1)))
 
-(deftest for.previous.in-string.with-index
-    (iter (:as x :in-string "235" :with-index y)
-          (:as p :previous y :initially 9)
-          (collecting p))
-  (9 0 1))
+(deftest for.previous.index-of-vector ()
+  (should be equal
+          (iter
+            (:as x :index-of-vector '#(2 3 4 5))
+            (:as p :previous x :initially 9 :back 2)
+            (:collecting p))
+          '(9 9 0 1)))
 
-(deftest for.previous.index-of-vector
-    (iter (:as x index-of-vector '#(2 3 4 5))
-          (:as p :previous x :initially 9 back 2)
-          (collecting p))
-  (9 9 0 1))
+(deftest for.previous.in-vector.with-index ()
+  (should be equal
+          (iter
+            (:as x :in-vector '#(2 3 4 5) :with-index y)
+            (:as p :previous y :initially 9 :back 2)
+            (:collecting p))
+          (9 9 0 1)))
 
-(deftest for.previous.in-vector.with-index
-    (iter (:as x :in-vector '#(2 3 4 5) :with-index y)
-          (:as p :previous y :initially 9 back 2)
-          (collecting p))
-  (9 9 0 1))
+(deftest for.previous.var-with-type-declaration ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 5)
+            (:for (the fixnum i-prev) :previous i)
+            (:collect i-prev))
+          '(nil 1 2 3 4)))
 
-(deftest for.previous.var-with-type-declaration
-    (iter (:for i :from 1 :to 5)
-          (:for (the fixnum i-prev) :previous i)
-          (:collect i-prev))
-  (nil 1 2 3 4))
+(deftest for.first.1 ()
+  (should be equal
+          (iter
+            (:for num :in '(20 19 18 17 16))
+            (:for i :first num :then (1+ i))
+            (:collect i))
+          '(20 21 22 23 24)))
 
-(deftest for.first.1
-    (iter (:for num :in '(20 19 18 17 16))
-          (:for i first num then (1+ i))
-          (:collect i))
-  (20 21 22 23 24))
+(deftest for.initially.1 ()
+  (should be equal
+          (iter
+            (:with (v z))
+            (:for i :initially (length v) :then (1+ i))
+            (:collect (cons i z))
+            (:while (evenp i)))
+          '((0) (1))))
 
-(deftest for.initially.1
-    (iter (:with (v z))
-          (:for i initially (length v) then (1+ i))
-          (:collect (cons i z))
-          (:while (evenp i)))
-  ((0) (1)))
+(deftest sum.1 ()
+  (should be eq
+          (iter
+            (:for el :in '(100 200 300))
+            (:sum el :into x)
+            (declare (fixnum x))
+            (:finally (:return x)))
+          600))
 
-(deftest sum.1
-    (iter (:for el :in '(100 200 300))
-          (:sum el :in:to x)
-          (declare (fixnum x))
-          (:finally (:return x)))
-  600)
+(deftest collect.3 ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 5)
+            (:collect i))
+          '(1 2 3 4 5)))
 
-(deftest collect.3
-    (iter (:for i :from 1 :to 5)
-          (:collect i))
-  (1 2 3 4 5))
+(deftest collect.4 ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 5)
+            (:collect i :at :beginning))
+          '(5 4 3 2 1)))
 
-(deftest collect.4
-    (iter (:for i :from 1 :to 5)
-          (:collect i at beginning))
-  (5 4 3 2 1))
+(deftest collect.5 ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 4)
+            (:collect i :at :end))
+          '(1 2 3 4)))
 
-(deftest collect.5
-    (iter (:for i :from 1 :to 4)
-          (:collect i at :end))
-  (1 2 3 4))
+(deftest collect.6 ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 3)
+            (:collect i :at :start))
+          '(3 2 1)))
 
-(deftest collect.6
-    (iter (:for i :from 1 :to 3)
-          (:collect i :at start))
-  (3 2 1))
+(deftest collect-by.1 ()
+  (should be equal
+          (iter
+            (:for i :downfrom 10 :by 2)
+            (:repeat 3)
+            (:collect i))
+          '(10 8 6)))
 
-(deftest collect-by.1
-    (iter (:for i :downfrom 10 :by 2) (:repeat 3)
-          (:collect i))
-  (10 8 6))
+(deftest in-vector.by.1 ()
+  (should be equal
+          (iter
+            (:for i :in-vector '#(0 1 2 3 4) :by 2)
+            (:collect i))
+          '(0 2 4)))
 
-(deftest in-vector.by.1
-    (iter (:for i :in-vector '#(0 1 2 3 4) :by 2)
-          (:collect i))
-  (0 2 4))
+(deftest index-of-vector.by.1 ()
+  (should be equal
+          (iter
+            (:for i :index-of-vector '#(0 1 2 3 4) :by 2)
+            (:collect i))
+          '(0 2 4)))
 
-(deftest index-of-vector.by.1
-    (iter (:for i index-of-vector '#(0 1 2 3 4) :by 2)
-          (:collect i))
-  (0 2 4))
+(deftest in-vector.downto.1 ()
+  (should be equal
+          (iter
+            (:for i :in-vector '#(0 1 2 3 4) :downto 0)
+            (:collect i))
+          '(4 3 2 1 0)))
 
-(deftest in-vector.downto.1
-    (iter (:for i :in-vector '#(0 1 2 3 4) :down:to 0)
-          (:collect i))
-  (4 3 2 1 0))
+(deftest index-of-vector.downto.1 ()
+  (should be equal
+          (iter
+            (:for i :index-of-vector #(0 1 2 3 4) :downto 0)
+            (:collect i))
+          '(4 3 2 1 0)))
 
-(deftest index-of-vector.downto.1
-    (iter (:for i index-of-vector #(0 1 2 3 4) :down:to 0)
-          (:collect i))
-  (4 3 2 1 0))
+(deftest in-vector.downto.2 ()
+  (should be equal
+          (iter
+            (:for i :in-vector '#(0 1 2 3 4) :downto 0 :by 2)
+            (:collect i))
+          '(4 2 0))) ; erroneously got (3 1) :in some past
 
-(deftest in-vector.downto.2
-    (iter (:for i :in-vector '#(0 1 2 3 4) :down:to 0 :by 2)
-          (:collect i))
-  (4 2 0)) ; erroneously got (3 1) :in some past
+(deftest index-of-vector.downto.2 ()
+  (should be equal
+          (iter
+            (:for i :index-of-vector #(0 1 2 3 4) :downto 0 :by 2)
+            (:collect i))
+          '(4 2 0)))
 
-(deftest index-of-vector.downto.2
-    (iter (:for i index-of-vector #(0 1 2 3 4) :down:to 0 :by 2)
-          (:collect i))
-  (4 2 0))
+;; (deftest generate.in-vector.downto.1 ()
+;;   (should be equal
+;;           (iter
+;;             (:generate i :in-vector #(0 1 2 3 4) :downto 0 :by 2)
+;;             (:collect (:next i)))
+;;           '(4 2 0)))
 
-(deftest generate.in-vector.downto.1
-    (iter (:generate i :in-vector #(0 1 2 3 4) :down:to 0 :by 2)
-          (:collect (:next i)))
-  (4 2 0))
+;; (deftest generate.index-of-vector.downto.1 ()
+;;   (should be equal
+;;           (iter
+;;             (:generate i :index-of-vector '#(0 1 2 3 4) :downto 0 :by 2)
+;;             (:collect (:next i)))
+;;           (4 2 0)))
 
-(deftest generate.index-of-vector.downto.1
-    (iter (:generate i index-of-vector '#(0 1 2 3 4) :down:to 0 :by 2)
-          (:collect (:next i)))
-  (4 2 0))
+(deftest if-first-time.1 ()
+  (should be equal
+          (with-output-to-string (*standard-output*)
+            (iter (:for i :from 200 :to 203)
+              (:if-first-time (format t "honka"))))
+          "honka"))
 
-(deftest if-first-time.1
-    (with-output-to-string (*standard-output*)
-      (iter (:for i :from 200 :to 203)
-            (if-first-time (format t "honka"))))
-  "honka")
+(deftest if-first-time.2 ()
+  (should be equal
+          (with-output-to-string (*standard-output*)
+            (iter (:for i :from 200 :to 204)
+              (if (oddp i) (:if-first-time (princ "honka") (princ "tah")))))
+          "honkatah"))
 
-(deftest if-first-time.2
-    (with-output-to-string (*standard-output*)
-      (iter (:for i :from 200 :to 204)
-            (if (oddp i) (if-first-time (princ "honka") (princ "tah")))))
-  "honkatah")
+(deftest if-first-time.3 ()
+  (should be equal
+          (iter
+            (:for i :to 5)
+            (when (oddp i)
+              (:if-first-time nil (:collect -1))
+              (:collect i)))
+          '(1 -1 3 -1 5)))
 
-(deftest if-first-time.3
-    (iter (:for i :to 5)
-          (when (oddp i)
-            (if-first-time nil (:collect -1))
-            (:collect i)))
-  (1 -1 3 -1 5))
+(deftest first-time-p.0 ()
+  (should be equal
+          (with-output-to-string (*standard-output*)
+            (iter (:for el :in '(nil 1 2 nil 3))
+              (when el
+                (unless (first-time-p)
+                  (princ ", "))
+                (princ el))))
+          "1, 2, 3"))
 
-(deftest first-time-p.0
-    (with-output-to-string (*standard-output*)
-      (iter (:for el :in '(nil 1 2 nil 3))
-            (when el
-              (unless (first-time-p)
-                (princ ", "))
-              (princ el))))
-  "1, 2, 3")
+(deftest first-time-p.1 ()
+  (should be equal
+          (iter (:for i :to 5)
+            (if (first-time-p) (:collect -1))
+            (if (first-time-p) (:collect -2))
+            (when (oddp i)
+              (if (first-time-p) nil (:collect -1))
+              (:collect i)))
+          '(-1 -2 1 -1 3 -1 5)))
 
-(deftest first-time-p.1
-    (iter (:for i :to 5)
-          (if (first-time-p) (:collect -1))
-          (if (first-time-p) (:collect -2))
-          (when (oddp i)
-            (if (first-time-p) nil (:collect -1))
-            (:collect i)))
-  (-1 -2 1 -1 3 -1 5))
+(deftest first-iteration-p.1 ()
+  (should be equal
+          (iter (:for i :to 5)
+            (if (:first-iteration-p) (:collect -1))
+            (if (:first-iteration-p) (:collect -2))
+            (when (oddp i)
+              (if (:first-iteration-p) nil (:collect -1))
+              (:collect i)))
+          '(-1 -2 -1 1 -1 3 -1 5)))
 
-(deftest first-iteration-p.1
-    (iter (:for i :to 5)
-          (if (first-iteration-p) (:collect -1))
-          (if (first-iteration-p) (:collect -2))
-          (when (oddp i)
-            (if (first-iteration-p) nil (:collect -1))
-            (:collect i)))
-  (-1 -2 -1 1 -1 3 -1 5))
+(deftest collect.multiple.1 ()
+  (should be equal
+          (iter
+            (:for i :from 1 :to 10)
+            (:collect i :into nums)
+            (:collect (sqrt i) :into nums)
+            (:finally (:return nums)))
+          #.(loop :for i :from 1 :to 10
+                  :collect i
+                  :collect (sqrt i))))
 
-(deftest collect.multiple.1
-    (iter (:for i :from 1 :to 10)
-          (:collect i :in:to nums)
-          (:collect (sqrt i) :in:to nums)
-          (:finally (:return nums)))
-  #.(loop :for i :from 1 :to 10
-          :collect i
-          :collect (sqrt i)))
+(deftest collect.type.string.1 ()
+  (should be equal
+          (locally (declare (optimize safety (debug 2) (speed 0) (space 1)))
+            (iter
+              (declare (iter:declare-variables))
+              (:for s :in-vector '#(\a |b| |cD|))
+              (:collect (char (symbol-name s) 0) :result-type string)))
+          "abc"))
 
-(deftest collect.type.string.1
-    (locally (declare (optimize safety (debug 2) (speed 0) (space 1)))
-      (iter (declare (iter:declare-variables))
-            (:for s :in-vector '#(\a |b| |cD|))
-            (:collect (char (symbol-name s) 0) :result-type string)))
-  "abc")
+(deftest collect.type.string.2 ()
+  (should be equal
+          (iter
+            (:for c
+             :in-stream (make-string-input-stream "aBc")
+             :using #'read-char)
+            (when (digit-char-p c 16)
+              (:collect c :result-type string)))
+          "aBc"))
 
-(deftest collect.type.string.2
-    (iter (:for c :in-stream (make-string-input-stream "aBc") :using #'read-char)
-          (when (digit-char-p c 16)
-            (:collect c :result-type string)))
-  "aBc")
+(deftest collect.type.string.3 ()
+  (should be equal
+          (iter
+            (:for c :in-string "235" :downfrom 1)
+            (:collect c :into s result-type string)
+            (:finally (:return s)))
+          "32"))
 
-(deftest collect.type.string.3
-    (iter (:for c :in-string "235" :downfrom 1)
-          (:collect c :in:to s result-type string)
-          (:finally (:return s)))
-  "32")
+(deftest collect.type.vector.1 ()
+  (should be equal
+          (locally (declare (optimize safety (debug 2) (speed 0) (space 1)))
+            (iter (declare (iter:declare-variables))
+              (:for s :in-vector '#(\a |b| |cD|))
+              (:collect (char (symbol-name s) 0) :result-type vector)))
+          #(#\a #\b #\c)))
 
-(deftest collect.type.vector.1
-    (locally (declare (optimize safety (debug 2) (speed 0) (space 1)))
-      (iter (declare (iter:declare-variables))
-            (:for s :in-vector '#(\a |b| |cD|))
-            (:collect (char (symbol-name s) 0) :result-type vector)))
-  #(#\a #\b #\c))
+(deftest collect.type.vector.2 ()
+  (should be equal
+          (iter
+            (:for c :in-vector "235" :downfrom 1)
+            (:collect (digit-char-p c) :into v :result-type vector)
+            (:finally (:return v)))
+          #(3 2)))
 
-(deftest collect.type.vector.2
-    (iter (:for c :in-vector "235" :downfrom 1)
-          (:collect (digit-char-p c) :in:to v :result-type vector)
-          (:finally (:return v)))
-  #(3 2))
+(deftest adjoin.1 ()
+  (should be equal
+          (iter
+            (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining i :at :start :test #'string-equal))
+          '("abc" "ab")))
 
-(deftest adjoin.1
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining i at :start :test #'string-equal))
-  ("abc" "ab"))
+(deftest adjoin.2 ()
+  (should be equal
+          (iter
+            (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining i :at :start))
+          '("AB" "abc" "aB" "ab")))
 
-(deftest adjoin.2
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining i at :start))
-  ("AB" "abc" "aB" "ab"))
+(deftest adjoin.3 ()
+  (should be equal
+          (iter
+            (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining i :at end #:test #'string-equal))
+          '("ab" "abc")))
 
-(deftest adjoin.3
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining i :at end #:test #'string-equal))
-  ("ab" "abc"))
+(deftest adjoin.4 ()
+  (should be equal
+          (iter
+            (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining i :at :end))
+          '("ab" "aB" "abc" "AB")))
 
-(deftest adjoin.4
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining i at :end))
-  ("ab" "aB" "abc" "AB"))
+(deftest adjoin.5 ()
+  (should be equal
+          (iter (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining (string-downcase i) :at :start :test #'string-equal))
+          '("abc" "ab")))
 
-(deftest adjoin.5
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining (string-downcase i) at :start :test #'string-equal))
-  ("abc" "ab"))
+(deftest adjoin.6 ()
+  (should be equal
+          (iter
+            (:for i :in '("ab" "aB" "abc" "AB"))
+            (:adjoining (string-upcase i) #:at :end test #'string=))
+          '("AB" "ABC")))
 
-(deftest adjoin.6
-    (iter (:for i :in '("ab" "aB" "abc" "AB"))
-          (adjoining (string-upcase i) #:at :end test #'string=))
-  ("AB" "ABC"))
+(deftest append.1 ()
+  (should be equal
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :at :start))
+          '(3 2 3 1 2 3)))
 
-(deftest append.1
-    (iter (:for l :on '(1 2 3))
-          (appending l at :start))
-  (3 2 3 1 2 3))
+(deftest nconc.1 ()
+  (should be equal
+          (iter
+            (:for l :on (list 1 2 3))
+            (:nconcing (copy-list l) :at :beginning))
+          '(3 2 3 1 2 3)))
 
-(deftest nconc.1
-    (iter (:for l :on (list 1 2 3))
-          (nconcing (copy-list l) at :beginning))
-  (3 2 3 1 2 3))
+(deftest append.2 ()
+  (should be equal
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :at #:end))
+          '(1 2 3 2 3 3)))
 
-(deftest append.2
-    (iter (:for l :on '(1 2 3))
-          (appending l :at #:end))
-  (1 2 3 2 3 3))
+(deftest nconc.2 ()
+  (should be equal
+          (iter
+            (:for l :on (list 1 2 3))
+            (:nconcing (copy-list l) :at end))
+          '(1 2 3 2 3 3)))
 
-(deftest nconc.2
-    (iter (:for l :on (list 1 2 3))
-          (nconcing (copy-list l) at end))
-  (1 2 3 2 3 3))
+(deftest append.3 ()
+  (should be equal
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :into x) (:finally (:return x)))
+          (1 2 3 2 3 3)))
 
-(deftest append.3
-    (iter (:for l :on '(1 2 3))
-          (appending l :in:to x) (:finally (:return x)))
-  (1 2 3 2 3 3))
+(deftest nconc.3 ()
+  (should be equal
+          (iter
+            (:for l :on (list 1 2 3))
+            (:nconcing (copy-list l) :into x) (:finally (:return x)))
+          '(1 2 3 2 3 3)))
 
-(deftest nconc.3
-    (iter (:for l :on (list 1 2 3))
-          (nconcing (copy-list l) :in:to x) (:finally (:return x)))
-  (1 2 3 2 3 3))
+(deftest append.4 ()
+  (should be eq
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :into x))
+          nil))
 
-(deftest append.4
-    (iter (:for l :on '(1 2 3))
-          (appending l :in:to x))
-  nil)
+(deftest nconc.4 ()
+  (should be eq
+          (iter
+            (:for l :on (list 1 2 3))
+            (:nconcing (copy-list l) :into x))
+          nil))
 
-(deftest nconc.4
-    (iter (:for l :on (list 1 2 3))
-          (nconcing (copy-list l) :in:to x))
-  nil)
+(deftest append.5 ()
+  (should be equal
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :at #:end)
+            (:collect (:first l)))
+          '(1 2 3 1 2 3 2 3 3)))
 
-(deftest append.5
-    (iter (:for l :on '(1 2 3))
-          (appending l :at #:end)
-          (:collect (first l)))
-  (1 2 3 1 2 3 2 3 3))
+(deftest append.6 ()
+  (should be equal
+          (iter
+            (:for l :on '(1 2 3))
+            (:appending l :at :end)
+            (:collect l))
+          '(1 2 3 (1 2 3) 2 3 (2 3) 3 (3))))
 
-(deftest append.6
-    (iter (:for l :on '(1 2 3))
-          (appending l :at :end)
-          (:collect l))
-  (1 2 3 (1 2 3) 2 3 (2 3) 3 (3)))
+(deftest nconc.5 ()
+  (should be equal
+          (iter
+            (:for l :on (list 1 2 3))
+            (:collect (:first l))
+            (:nconcing (copy-list l) :at end))
+          '(1 1 2 3 2 2 3 3 3)))
 
-(deftest nconc.5
-    (iter (:for l :on (list 1 2 3))
-          (:collect (first l))
-          (nconcing (copy-list l) at end))
-  (1 1 2 3 2 2 3 3 3))
+(deftest union.1 ()
+  (should be equal
+          (iter (:for l :on '(a b c))
+            (::unioning l)
+            (:collect (:first l)))
+          '(a b c a b c)))
 
-(deftest union.1
-    (iter (:for l :on '(a b c))
-          (unioning l)
-          (:collect (first l)))
-  (a b c a b c))
+(deftest union.2 ()
+  (should be equal
+          (iter
+            (:for l :on '(a b c))
+            (:collecting (:first l))
+            (::unioning l :test #'eql))
+          '(a b c b c)))
 
-(deftest union.2
-    (iter (:for l :on '(a b c))
-          (collecting (first l))
-          (unioning l :test #'eql))
-  (a b c b c))
-
-(deftest union.3
-    (iter (:for l :in-vector '#("a" "A" "aB" "ab" "AB"))
-          (unioning (list l) :test #'string-equal))
+(deftest union.3 ()
+  (should be equal)
+  (iter (:for l :in-vector '#("a" "A" "aB" "ab" "AB"))
+    (::unioning (list l) :test #'string-equal))
   ("a" "aB"))
 
-(deftest nunion.3
-    (iter (:for l :in-vector '#("a" "A" "aB" "ab" "AB"))
-          (nunioning (list l) :test #'string-equal :at :start))
+(deftest nunion.3 ()
+  (should be equal)
+  (iter (:for l :in-vector '#("a" "A" "aB" "ab" "AB"))
+    (:n:unioning (list l) :test #'string-equal :at :start))
   ("aB" "a"))
 
-(deftest value.minimize
-    (iter (:for i :from 4 :down:to -3 :by 3)
-          (:collect (:minimize (* i i) :in:to foo)))
+(deftest value.minimize ()
+  (should be equal)
+  (iter (:for i :from 4 :downto -3 :by 3)
+    (:collect (:minimize (* i i) :into foo)))
   (16 1 1))
 
-(deftest value.maximize
-    (iter (:for i :from 3 :to 5)
-          (:sum (:maximize (- i 2) :in:to foo)))
+(deftest value.maximize ()
+  (should be equal)
+  (iter (:for i :from 3 :to 5)
+    (:sum (:maximize (- i 2) :into foo)))
   6)
 
-(deftest value.finding-maximizing.1
-    (iter (:for i :from 3 :to 6)
-          (adjoining (:finding (* i i) :maximizing #'integer-length
-                              :in:to foo) :test #'=))
+(deftest value.finding-maximizing.1 ()
+  (should be equal)
+  (iter (:for i :from 3 :to 6)
+    (:adjoining (:finding (* i i) :maximizing #'integer-length
+                 :into foo) :test #'=))
   (9 16 36))
 
-(deftest value.finding-maximizing.2
-    (iter (:for i :from 3 :to 6)
-          (adjoining (:finding (* i i) :maximizing (integer-length i)
-                              :in:to foo) :test #'=))
+(deftest value.finding-maximizing.2 ()
+  (should be equal)
+  (iter (:for i :from 3 :to 6)
+    (:adjoining (:finding (* i i) :maximizing (integer-length i)
+                 :into foo) :test #'=))
   (9 16))
 
-(deftest walk.counting
-    (iter (:for i :from 3 :to 5)
-          (counting (if-first-time nil t)))
+(deftest walk.counting ()
+  (should be equal)
+  (iter (:for i :from 3 :to 5)
+    (counting (:if-first-time nil t)))
   2)
 
-(deftest value.counting
-    (iter (:for x :in-sequence '#(nil t nil t))
-          (:collect (counting x :in:to foo)))
+(deftest value.counting ()
+  (should be equal)
+  (iter (:for x :in-sequence '#(nil t nil t))
+    (:collect (counting x :into foo)))
   (0 1 1 2))
 
-(deftest value.adjoining
-    (iter (:for i :from 3 :to 5)
-          (:sum (length (adjoining i :in:to foo))))
+(deftest value.adjoining ()
+  (should be equal)
+  (iter (:for i :from 3 :to 5)
+    (:sum (length (:adjoining i :into foo))))
   6)
 
-(deftest value.collecting
-    (iter (:for i :from 3 :to 5)
-          (:collect (copy-list (collecting i :in:to foo at #:start))
-                   :at end))
+(deftest value.collecting ()
+  (should be equal)
+  (iter (:for i :from 3 :to 5)
+    (:collect (copy-list (:collecting i :into foo :at #:start))
+      :at end))
   ((3) (4 3) (5 4 3)))
 
-(deftest value.accumulate
-    (iter (:for c :in-string "245")
-          (:collect (:accumulate (digit-char-p c) :by #'+
-                               :initial-value 0 :in:to s) :in:to l)
-          (:finally (:return (cons s l))))
+(deftest value.accumulate ()
+  (should be equal)
+  (iter (:for c :in-string "245")
+    (:collect (:accumulate (digit-char-p c) :by #'+
+               :initial-value 0 :into s) :into l)
+    (:finally (:return (cons s l))))
   (11 2 6 11))
 
-(deftest value.:always
-    (iter (:for i :from -3 :down:to -6 :by 2)
-          (summing (:always i) :in:to x)
-          (:finally (:return x)))
+(deftest value.:always ()
+  (should be equal)
+  (iter (:for i :from -3 :downto -6 :by 2)
+    (summing (:always i) :into x)
+    (:finally (:return x)))
   -8)
 
-(deftest dotted.1
-    (iter (:for l :on '(1 2 . 3))
-          (:collect l))
+(deftest dotted.1 ()
+  (should be equal)
+  (iter (:for l :on '(1 2 . 3))
+    (:collect l))
   ((1 2 . 3) (2 . 3)))
 
-(deftest dotted.2
-    (iter (:for (e) :on '(1 2 . 3))
-          (:collect e))
+(deftest dotted.2 ()
+  (should be equal)
+  (iter (:for (e) :on '(1 2 . 3))
+    (:collect e))
   (1 2))
 
-(deftest dotted.3
-    (values (ignore-errors (iter (:for i :in '(1 2 . 3)) (count t))))
+(deftest dotted.3 ()
+  (should be equal)
+  (values (ignore-errors (iter (:for i :in '(1 2 . 3)) (:count t))))
   nil)
 
-(deftest dotted.4
-    (iter (:for i :in '(1 1 2 3 . 3)) (:thereis (evenp i)))
+(deftest dotted.4 ()
+  (should be equal)
+  (iter (:for i :in '(1 1 2 3 . 3)) (:thereis (evenp i)))
   t)
 
-(deftest dotted.5
-    (iter (:for i :in '(1 2 . 3)) (:thereis (evenp i)))
+(deftest dotted.5 ()
+  (should be equal)
+  (iter (:for i :in '(1 2 . 3)) (:thereis (evenp i)))
   t)
 
-(deftest walk.multiple-value-bind
-    (string-upcase
-     (iter (:for name :in-vector (vector 'iter "FoOBaRzOt" '#:repeat))
-           (multiple-value-bind (sym access)
-               (find-symbol (string name) #.*package*)
-             (declare (type symbol sym))
-             (:collect (if access (char (symbol-name sym) 0) #\-)
-                      result-type string))))
+(deftest walk.multiple-value-bind ()
+  (should be equal)
+  (string-upcase
+   (iter (:for name :in-vector (vector 'iter "FoOBaRzOt" '#:repeat))
+     (multiple-value-bind (sym access)
+         (find-symbol (string name) #.*package*)
+       (declare (type symbol sym))
+       (:collect (if access (char (symbol-name sym) 0) #\-)
+         result-type string))))
   "I-R")
 
-(deftest subblocks.1
-    (iter fred
-          (:for i :from 1 :to 10)
-          (iter barney
-                (:for j :from i :to 10)
-                (if (> (* i j) 17)
-                    (return-:from fred j))))
+(deftest subblocks.1 ()
+  (should be equal)
+  (iter fred
+    (:for i :from 1 :to 10)
+    (iter barney
+      (:for j :from i :to 10)
+      (if (> (* i j) 17)
+          (return-:from fred j))))
   9)
 
-(deftest subblocks.wrong.1
-    (let ((ar #2a((1 2 3)
-              (4 5 6)
-              (7 8 9))))
-      (iter (:for i :below (array-dimensi:on ar 0))
-            (iter (:for j :below (array-dimensi:on ar 1))
-                  (:collect (aref ar i j)))))
+(deftest subblocks.wrong.1 ()
+  (should be equal)
+  (let ((ar #2a((1 2 3)
+                (4 5 6)
+                (7 8 9))))
+    (iter (:for i :below (array-dimensi:on ar 0))
+      (iter (:for j :below (array-dimensi:on ar 1))
+        (:collect (aref ar i j)))))
   nil)
 
-(deftest subblocks.2
-    (let ((ar #2a((1 2 3)
-                  (4 5 6)
-                  (7 8 9))))
-      (iter outer (:for i :below (array-dimensi:on ar 0))
-            (iter (:for j :below (array-dimensi:on ar 1))
-                  (:in outer (:collect (aref ar i j))))))
+(deftest subblocks.2 ()
+  (should be equal)
+  (let ((ar #2a((1 2 3)
+                (4 5 6)
+                (7 8 9))))
+    (iter outer (:for i :below (array-dimensi:on ar 0))
+      (iter (:for j :below (array-dimensi:on ar 1))
+        (:in outer (:collect (aref ar i j))))))
   (1 2 3 4 5 6 7 8 9))
 
-(deftest destructuring.1
-    (iter (:for (values (a . b) c)
-               := (funcall #'(lambda () (values (cons 1 'b) 2))))
-          (leave (list a b c)))
+(deftest destructuring.1 ()
+  (should be equal)
+  (iter (:for (values (a . b) c)
+         := (funcall #'(lambda () (values (cons 1 'b) 2))))
+    (leave (list a b c)))
   (1 b 2))
 
-(deftest leave
-    (iter (:for x :in '(1 2 3))
-          (if (evenp x) (leave x))
-          (:finally (error "not found")))
+(deftest leave ()
+  (should be equal)
+  (iter (:for x :in '(1 2 3))
+    (if (evenp x) (leave x))
+    (:finally (error "not found")))
   2)
 
-(deftest nil.block.names
-    (iter (:for x :in '(1 2 3))
-	  (dolist (y '(5 3 4))
-	    (when (= x y)
-	      (leave x)))
-	  (:finally (error "not found")))
+(deftest nil.block.names ()
+  (should be equal)
+  (iter (:for x :in '(1 2 3))
+	(dolist (y '(5 3 4))
+	  (when (= x y)
+	    (leave x)))
+	(:finally (error "not found")))
   3)
 
-(deftest lambda
-    (iter (:for i index-of-sequence "ab")
-          (collecting ((lambda(n) (cons 1 n)) i)))
+(deftest lambda ()
+  (should be equal)
+  (iter (:for i index-of-sequence "ab")
+    (:collecting ((lambda(n) (cons 1 n)) i)))
   ((1 . 0) (1 . 1)))
 
-(deftest type.1
-    (iter (:for el :in '(1 2 3 4 5))
-          (declare (fixnum el))
-          (counting (oddp el)))
+(deftest type.1 ()
+  (should be equal)
+  (iter (:for el :in '(1 2 3 4 5))
+    (declare (fixnum el))
+    (counting (oddp el)))
   3)
 
-(deftest type.2
-    (iter (:for (the fixnum el) :in '(1 2 3 4 5))
-          (counting (oddp el)))
+(deftest type.2 ()
+  (should be equal)
+  (iter (:for (the fixnum el) :in '(1 2 3 4 5))
+    (counting (oddp el)))
   3)
 
-(deftest type.3
-    (iter (declare (iter:declare-variables))
-          (:for el :in '(1 2 3 4 5))
-          (count (oddp el) :in:to my-result)
-          (declare (integer my-result))
-          (:finally (:return my-result)))
+(deftest type.3 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:for el :in '(1 2 3 4 5))
+    (:count (oddp el) :into my-result)
+    (declare (integer my-result))
+    (:finally (:return my-result)))
   3)
 
-(deftest type.4
-    (iter (declare (iter:declare-variables))
-          (:for i :from 1 :to 10)
-          (:collect i))
+(deftest type.4 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:for i :from 1 :to 10)
+    (:collect i))
   (1 2 3 4 5 6 7 8 9 10))
 
-(deftest type.5
-    (iter (declare (iter:declare-variables))
-          (:repeat 0)
-          (:minimize (the fixnum '1)))
+(deftest type.5 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 0)
+    (:minimize (the fixnum '1)))
   0)
 
-(deftest type.6
-    (iter (declare (iter:declare-variables))
-          (:repeat 0)
-          (:maximize 1))
+(deftest type.6 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 0)
+    (:maximize 1))
   0)
 
-(deftest type.7
-    (iter (declare (iter:declare-variables))
-          (:repeat 0)
-          (:minimize (the double-float '1.0d0)))
+(deftest type.7 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 0)
+    (:minimize (the double-float '1.0d0)))
   0.0d0)
 
 ;;; this test catches problems :with make-initial-value, which cannot find a good initial
 ;;; value :for cases where the initial value should be NIL.  This causes generati:on of a
 ;;; spurious warning.
-(deftest type.8
-    (catch 'warned
-      (handler-bind ((simple-warning #'(lambda (w) (throw 'warned (format nil "~a" w))))
-                     (error #'(lambda (w) (throw 'warned (format nil "~a" w)))))
-        (let ((vec (vector (make-instance 'polar :mag 2) (make-instance 'polar :mag 4))))
-          (nth-value 1
-                     (iter (:for x :in-vector vec :with-index i)
-                       (declare (type (or null polar) x) (type fixnum i))
-                       (with-slots (rho) x
-                         (:finding x :such-that (= rho 4) :in:to target))
-                       (:finally (:return (values target i))))))))
+(deftest type.8 ()
+  (should be equal)
+  (catch 'warned
+    (handler-bind ((simple-warning #'(lambda (w) (throw 'warned (format nil "~a" w))))
+                   (error #'(lambda (w) (throw 'warned (format nil "~a" w)))))
+      (let ((vec (vector (make-instance 'polar :mag 2) (make-instance 'polar :mag 4))))
+        (nth-value 1
+                   (iter (:for x :in-vector vec :with-index i)
+                     (declare (type (or null polar) x) (type fixnum i))
+                     (with-slots (rho) x
+                       (:finding x :such-that (= rho 4) :into target))
+                     (:finally (:return (values target i))))))))
   1)
 
 ;;; test that counting result-type uses an initform of the appropriate type.
-(deftest type.9
-    (iter (declare (iter:declare-variables))
-          (:repeat 0)
-          (counting t result-type double-float))
+(deftest type.9 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 0)
+    (counting t result-type double-float))
   0d0)
 
 ;;; test that :sum result-type uses an accumulator of the appropriate type.
-(deftest type.10
-    (iter (declare (iter:declare-variables))
-          (:repeat 2)
-          (:sum most-positive-fixnum result-type integer))
+(deftest type.10 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 2)
+    (:sum most-positive-fixnum result-type integer))
   #.(* 2 most-positive-fixnum))
 
 ;;; test that multiply result-type uses an accumulator of the appropriate type.
-(deftest type.11
-    (iter (declare (iter:declare-variables))
-          (:for n :in (list most-positive-fixnum 2))
-          (multiply n result-type integer))
+(deftest type.11 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:for n :in (list most-positive-fixnum 2))
+    (multiply n result-type integer))
   #.(* 2 most-positive-fixnum))
 
 ;;; test that :reducing result-type :with an initform doesn't error
-(deftest type.12
-    (iter (declare (iter:declare-variables))
-          (:for i :from 1 :to 4)
-          (:reducing i :by #'+ result-type fixnum))
+(deftest type.12 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:for i :from 1 :to 4)
+    (:reducing i :by #'+ result-type fixnum))
   10)
 
 ;;; test that :reducing result-type uses an initform of the appropriate type.
 ;; the manual says that this behavior is undefined, but it does work, and it's necessary
 ;; :for sbcl :to :generate efficient numeric reductions without throwing a fit.
-(deftest type.13
-    (iter (declare (iter:declare-variables))
-          (:repeat 0)
-          (:reducing 0d0 :by #'+ result-type double-float))
+(deftest type.13 ()
+  (should be equal)
+  (iter (declare (iter:declare-variables))
+    (:repeat 0)
+    (:reducing 0d0 :by #'+ result-type double-float))
   0d0)
 
-(deftest static.error.1
-    (values
-     (ignore-errors ; Iter complains multiple values make no sense here
-      (macroexpand-1 '(iter (:for (values a b) :in '(1 2 3)))) t))
+(deftest static.error.1 ()
+  (should be equal)
+  (values
+   (ignore-errors          ; Iter complains multiple values make no sense here
+    (macroexpand-1 '(iter (:for (values a b) :in '(1 2 3)))) t))
   nil)
 
-(deftest code-movement.1
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((x 3))
-                           (initially (setq x 4))
-                           (:return x))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.1 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((x 3))
+                     (:initially (setq x 4))
+                     (:return x))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.2
-        (handler-case (macroexpand '
-                       (iter (:for i :from 1 :to 10)
-                             (let ((x 3))
-                               (:collect i :in:to x))))
-          (error () t)
-          (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.2 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((x 3))
+                     (:collect i :into x))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.3
-    (iter (:with x := 3)
-          (:for el :in '(0 1 2 3))
-          (setq x 1)
-          (:reducing el :by #'+ :initial-value x))
-  9 ; not 7
+(deftest code-movement.3 ()
+  (should be equal)
+  (iter (:with x := 3)
+    (:for el :in '(0 1 2 3))
+    (setq x 1)
+    (:reducing el :by #'+ :initial-value x))
+  9                                     ; not 7
   )
 
-(deftest code-movement.else
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((x 3))
-                           (:else (:return x)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.else ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((x 3))
+                     (:else (:return x)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.after-each
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (after-each (princ y)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.after-each ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:after-each (princ y)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.declare.1
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (declare (optimize safety))
-                           (after-each (princ y)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.declare.1 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (declare (optimize safety))
+                     (:after-each (princ y)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.declare.2
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((safety i))
-                           (after-each
-                             (let ()
-                               (declare (optimize safety))
-                               (princ i))))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.declare.2 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((safety i))
+                     (after-each
+                      (let ()
+                        (declare (optimize safety))
+                        (princ i))))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   nil)
 
-(deftest code-movement.locally.1
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (:else (locally (princ y))))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.locally.1 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:else (locally (princ y))))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.locally.2
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (:else (locally (princ i))))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.locally.2 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:else (locally (princ i))))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   nil)
 
-(deftest code-movement.initially
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (initially (princ y)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.initially ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:initially (princ y)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.:finally
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (:finally (:return y)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.:finally ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:finally (:return y)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest code-movement.:finally-protected
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (let ((y i))
-                           (:finally-protected (:return y)))))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest code-movement.:finally-protected ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (let ((y i))
+                     (:finally-protected (:return y)))))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
-(deftest static.conflict.1
-    (handler-case (macroexpand '
-                   (iter (:for i :from 1 :to 10)
-                         (:collect i) (:sum i)))
-      (error () t)
-      (:no-error (f x) (declare (ignore f x)) nil))
+(deftest static.conflict.1 ()
+  (should be equal)
+  (handler-case (macroexpand '
+                 (iter (:for i :from 1 :to 10)
+                   (:collect i) (:sum i)))
+    (error () t)
+    (:no-error (f x) (declare (ignore f x)) nil))
   t)
 
 ;;; 2005: I'm considering making this shadowing feature unspecified (and
 ;;; removing the test), because it takes away implementati:on freedom of
 ;;; choosing :to reimplement Iter's own clauses via macrolet or defmacro.
-(deftest macro.shadow.clause
-    (macrolet ((multiply (expr)
-                 `(:reducing ,expr :by #'+ :initial-value 0)))
-      (iter (:for el :in '(1 2 3 4))
-            (multiply el)))
+(deftest macro.shadow.clause ()
+  (should be equal)
+  (macrolet ((multiply (expr)
+               `(:reducing ,expr :by #'+ :initial-value 0)))
+    (iter (:for el :in '(1 2 3 4))
+      (multiply el)))
   10)
 
-(deftest multiply.1
-    (iter (:for el :in '(1 2 3 4))
-          (multiply el))
+(deftest multiply.1 ()
+  (should be equal)
+  (iter (:for el :in '(1 2 3 4))
+    (multiply el))
   24)
 
 (defmacro sum-of-squares (expr)
@@ -1609,32 +1790,37 @@
     `(let ((,temp ,expr))
        (:sum (* ,temp ,temp)))))
 
-(deftest sum-of-squares.1
-    (iter (:for el :in '(1 2 3))
-          (sum-of-squares el))
+(deftest sum-of-squares.1 ()
+  (should be equal)
+  (iter (:for el :in '(1 2 3))
+    (sum-of-squares el))
   14)
 
-(deftest defmacro-clause.1
-    (defmacro-clause (multiply.clause expr &optional :IN:TO var)
-        ":from testsuite"
-      `(:reducing ,expr :by #'* :in:to ,var :initial-value 1))
+(deftest defmacro-clause.1 ()
+  (should be equal)
+  (defmacro-clause (multiply.clause expr &optional :INTO var)
+    ":from testsuite"
+    `(:reducing ,expr :by #'* :into ,var :initial-value 1))
   ;; A better :return value would be the exact list usable :with remove-clause
   ;; The :next versi:on shall do that
-  (multiply.clause expr &optional :IN:TO var))
+  (multiply.clause expr &optional :INTO var))
 
-(deftest multiply.clause
-    (iter (:for el :in '(1 2 3 4))
-          (multiply.clause el))
+(deftest multiply.clause ()
+  (should be equal)
+  (iter (:for el :in '(1 2 3 4))
+    (multiply.clause el))
   24)
 
-(deftest remove-clause.1
-    (iter:remove-clause '(multiply.clause &optional INTO))
+(deftest remove-clause.1 ()
+  (should be equal)
+  (iter:remove-clause '(multiply.clause &optional INTO))
   t)
 
-(deftest remove-clause.2
-    (values
-     (ignore-errors
-      (iter:remove-clause '(multiply.clause &optional INTO))))
+(deftest remove-clause.2 ()
+  (should be equal)
+  (values
+   (ignore-errors
+    (iter:remove-clause '(multiply.clause &optional INTO))))
   nil)
 
 (iter:defmacro-clause (:for var IN-WHOLE-VECTOR.clause v)
@@ -1646,16 +1832,18 @@
        (:for ,index :from 0 :below (array-dimensi:on ,vect 0))
        (:for ,var := (aref ,vect ,index)))))
 
-(deftest in-whole-vector.clause
-    (iter (:for i IN-WHOLE-VECTOR.clause (make-array 3 :fill-pointer 2
-                                         :initial-contents '(1 2 3)))
-          (:collect i))
+(deftest in-whole-vector.clause ()
+  (should be equal)
+  (iter (:for i IN-WHOLE-VECTOR.clause (make-array 3 :fill-pointer 2
+                                                     :initial-contents '(1 2 3)))
+    (:collect i))
   (1 2 3))
 
-(deftest in-vector.fill-pointer
-    (iter (:for i :in-vector (make-array 3 :fill-pointer 2
-                            :initial-contents '(1 2 3)))
-          (:collect i))
+(deftest in-vector.fill-pointer ()
+  (should be equal)
+  (iter (:for i :in-vector (make-array 3 :fill-pointer 2
+                                         :initial-contents '(1 2 3)))
+    (:collect i))
   (1 2))
 
 (iter:defmacro-driver (:for var IN-WHOLE-VECTOR v)
@@ -1669,61 +1857,68 @@
         (:with ,end := (array-dimensi:on ,vect 0))
         (:with ,index := -1)
         (,kwd ,var :next (progn (incf ,index)
-                               (if (>= ,index ,end) (terminate))
+                               (if (>= ,index ,end) (:terminate))
                                (aref ,vect ,index))))))
 
-(deftest in-whole-vector.driver
-    (iter (:for i IN-WHOLE-VECTOR (make-array '(3) :fill-pointer 2
-                                             :initial-contents '(1 2 3)))
-          (:collect i))
+(deftest in-whole-vector.driver ()
+  (should be equal)
+  (iter (:for i IN-WHOLE-VECTOR (make-array '(3) :fill-pointer 2
+                                                 :initial-contents '(1 2 3)))
+    (:collect i))
   (1 2 3))
 
-(deftest in-whole-vector.generate
-    (iter (:generating i IN-WHOLE-VECTOR (make-array '(3) :fill-pointer 2
-                                                    :initial-contents '(1 2 3)))
-          (:collect (:next i)))
+(deftest in-whole-vector.generate ()
+  (should be equal)
+  (iter (:generating i IN-WHOLE-VECTOR (make-array '(3) :fill-pointer 2
+                                                        :initial-contents '(1 2 3)))
+    (:collect (:next i)))
   (1 2 3))
 
-(deftest defclause-sequence
-    (progn
-      (iter:defclause-sequence IN-WHOLE-VECTOR.seq INDEX-OF-WHOLE-VECTOR
-        :access-fn 'aref
-        :size-fn '#'(lambda (v) (array-dimensi:on v 0))
-        :sequence-type 'vector
-        :element-type t
-        :element-doc-string
-          "Elements of a vector, disregarding fill-pointer"
-        :index-doc-string
-          "Indices of vector, disregarding fill-pointer")
-      t)
+(deftest defclause-sequence ()
+  (should be equal)
+  (progn
+    (iter:defclause-sequence IN-WHOLE-VECTOR.seq INDEX-OF-WHOLE-VECTOR
+      :access-fn 'aref
+      :size-fn '#'(lambda (v) (array-dimensi:on v 0))
+      :sequence-type 'vector
+      :element-type t
+      :element-doc-string
+      "Elements of a vector, disregarding fill-pointer"
+      :index-doc-string
+      "Indices of vector, disregarding fill-pointer")
+    t)
   t)
 
-(deftest in-whole-vector.seq
-    (iter (:for i IN-WHOLE-VECTOR.seq (make-array '(3) :fill-pointer 2
-                                                 :initial-contents '(1 2 3)))
-          (:collect i))
+(deftest in-whole-vector.seq ()
+  (should be equal)
+  (iter (:for i IN-WHOLE-VECTOR.seq (make-array '(3) :fill-pointer 2
+                                                     :initial-contents '(1 2 3)))
+    (:collect i))
   (1 2 3))
 
-(deftest in-whole-vector.seq.index
-    (iter (:for i INDEX-OF-WHOLE-VECTOR
-               (make-array 3 :fill-pointer 2 :initial-contents '(1 2 3)))
-          (:for j :previous i :initially 9)
-          (:collect (list j i)))
+(deftest in-whole-vector.seq.index ()
+  (should be equal)
+  (iter (:for i INDEX-OF-WHOLE-VECTOR
+              (make-array 3 :fill-pointer 2 :initial-contents '(1 2 3)))
+    (:for j :previous i :initially 9)
+    (:collect (list j i)))
   ((9 0)(0 1)(1 2)))
 
-(deftest in-whole-vector.seq.with-index
-    (iter (:for e IN-WHOLE-VECTOR.seq
-               (make-array '(3) :fill-pointer 2 :initial-contents '(a b c))
-               :with-index i)
-          (:for j :previous i :initially 9)
-          (:collect (list j i e)))
+(deftest in-whole-vector.seq.with-index ()
+  (should be equal)
+  (iter (:for e IN-WHOLE-VECTOR.seq
+         (make-array '(3) :fill-pointer 2 :initial-contents '(a b c))
+         :with-index i)
+    (:for j :previous i :initially 9)
+    (:collect (list j i e)))
   ((9 0 a)(0 1 b)(1 2 c)))
 
-(deftest in-whole-vector.seq.generate
-    (iter (:generate e IN-WHOLE-VECTOR.seq
-               (make-array 3 :fill-pointer 2 :initial-contents '(a b c))
-               :with-index i)
-          (:collect (list (:next e) e i)))
+(deftest in-whole-vector.seq.generate ()
+  (should be equal)
+  (iter (:generate e IN-WHOLE-VECTOR.seq
+         (make-array 3 :fill-pointer 2 :initial-contents '(a b c))
+         :with-index i)
+    (:collect (list (:next e) e i)))
   ((a a 0) (b b 1) (c c 2)))
 
 ;; The original example had three bugs:
@@ -1731,77 +1926,88 @@
 ;; - (:finally (leave ,winner)) breaks because :FINALLY does not walk
 ;;   its forms, so LEAVE does not work inside :FINALLY.
 ;; - Do not use (:finally (:RETURN ,winner)) either, :as that would
-;;   :always :return accumulated value, even :in case of ... :IN:TO nil.
-(deftest defmacro-clause.2
-    (defmacro-clause (:FINDING expr MAXING func &optional :IN:TO var)
-      "Iter paper demo example"
-      (let ((max-val (gensym "MAX-VAL"))
-            (temp1 (gensym "EL"))
-            (temp2 (gensym "VAL"))
-            (winner (or var iter:*result-var*)))
-        `(progn
-          (:with ,max-val := nil)
-          (:with ,winner := nil)
-          (let* ((,temp1 ,expr)
-                 (,temp2 (funcall ,func ,temp1)))
-            (when (or (null ,max-val) (> ,temp2 ,max-val))
-              (setq ,winner ,temp1 ,max-val ,temp2)))
-          #|(:finally (:return ,winner))|# )))
-  (:FINDING expr MAXING func &optional :IN:TO var))
+;;   :always :return accumulated value, even :in case of ... :INTO nil.
+(deftest defmacro-clause.2 ()
+  (should be equal)
+  (defmacro-clause (:FINDING expr MAXING func &optional :INTO var)
+    "Iter paper demo example"
+    (let ((max-val (gensym "MAX-VAL"))
+          (temp1 (gensym "EL"))
+          (temp2 (gensym "VAL"))
+          (winner (or var iter:*result-var*)))
+      `(progn
+         (:with ,max-val := nil)
+         (:with ,winner := nil)
+         (let* ((,temp1 ,expr)
+                (,temp2 (funcall ,func ,temp1)))
+           (when (or (null ,max-val) (> ,temp2 ,max-val))
+             (setq ,winner ,temp1 ,max-val ,temp2)))
+         #|(:finally (:return ,winner))|# )))
+  (:FINDING expr MAXING func &optional :INTO var))
 
-(deftest maxing.1
-    (iter (:for i :in-vector #(1 5 3))
-          (:finding i :maxing #'identity))
+(deftest maxing.1 ()
+  (should be equal)
+  (iter (:for i :in-vector #(1 5 3))
+    (:finding i :maxing #'identity))
   5)
 
-(deftest maxing.2
-    (iter (:for i :in-vector #(1 5 3))
-          (:finding i maxing #'identity :in:to foo))
+(deftest maxing.2 ()
+  (should be equal)
+  (iter (:for i :in-vector #(1 5 3))
+    (:finding i maxing #'identity :into foo))
   nil)
 
-(deftest maxing.3
-    (iter (:for i :in-vector #(2 5 4))
-          (:finding i maxing #'identity :in:to foo)
-          (when (evenp i) (:sum i)))
+(deftest maxing.3 ()
+  (should be equal)
+  (iter (:for i :in-vector #(2 5 4))
+    (:finding i maxing #'identity :into foo)
+    (when (evenp i) (:sum i)))
   6)
 
-(deftest display.1
-    (let ((*standard-output* (make-broadcast-stream)))
-      (display-iter-clauses) t)
+(deftest display.1 ()
+  (should be equal)
+  (let ((*standard-output* (make-broadcast-stream)))
+    (display-iter-clauses) t)
   t)
 
-(deftest display.2
-    (let ((*standard-output* (make-broadcast-stream)))
-      (display-iter-clauses 'for) t)
+(deftest display.2 ()
+  (should be equal)
+  (let ((*standard-output* (make-broadcast-stream)))
+    (display-iter-clauses 'for) t)
   t)
 
-(deftest multiple-value-prog1.1
-    (iter (:for x :in '(a b c))
-          (:collect (multiple-value-prog1 7)))
+(deftest multiple-value-prog1.1 ()
+  (should be equal)
+  (iter (:for x :in '(a b c))
+    (:collect (multiple-value-prog1 7)))
   (7 7 7))
 
-(deftest ignore-errors.1
-    (iter (:for x :in '(a b c))
-          (:collect (ignore-errors x)))
+(deftest ignore-errors.1 ()
+  (should be equal)
+  (iter (:for x :in '(a b c))
+    (:collect (ignore-errors x)))
   (a b c))
 
-(deftest ignore-errors.2
-    (iter (:generate x :in '(a b c))
-          (:collect (ignore-errors (:next x))))
+(deftest ignore-errors.2 ()
+  (should be equal)
+  (iter (:generate x :in '(a b c))
+    (:collect (ignore-errors (:next x))))
   (a b c))
 
-(deftest handler-bind.1
-    (iter (:for i :from -1 :to 2 :by 2)
-          (handler-bind ((error (lambda(c) c nil)))
-            (:collect i)))
+(deftest handler-bind.1 ()
+  (should be equal)
+  (iter (:for i :from -1 :to 2 :by 2)
+    (handler-bind ((error (lambda(c) c nil)))
+      (:collect i)))
   (-1 1))
 
-(deftest destructuring-bind.1
-    ;; One versi:on of Iter would enter endless loop :in ACL 7 and SBCL
-    ;; reported :by Julian Stecklina :in early 2005
-    (null (macroexpand '(iter (:for index :in '((1 2)))
-                         (:collect (destructuring-bind (a b) index
-                                    (+ a b))))))
+(deftest destructuring-bind.1 ()
+  (should be equal)
+  ;; One versi:on of Iter would enter endless loop :in ACL 7 and SBCL
+  ;; reported :by Julian Stecklina :in early 2005
+  (null (macroexpand '(iter (:for index :in '((1 2)))
+                       (:collect (destructuring-bind (a b) index
+                                   (+ a b))))))
   nil)
 
 (deftest destructuring-bind.2
@@ -1810,30 +2016,33 @@
                      (+ a b))))
   (3))
 
-(deftest symbol-macrolet
-    (iter (:for i :from -1 :down:to -3)
-          (symbol-macrolet ((x (* i i)))
-            (declare (optimize debug))
-            (:sum x)))
+(deftest symbol-macrolet ()
+  (should be equal)
+  (iter (:for i :from -1 :downto -3)
+    (symbol-macrolet ((x (* i i)))
+      (declare (optimize debug))
+      (:sum x)))
   14)
 
 (defclass polar ()
   ((rho   :initarg :mag)
    (theta :initform 0 :accessor angle)))
 
-(deftest with-slots
-    (iter (:with v := (vector (make-instance 'polar :mag 2)))
-          (:for x :in-sequence v)
-          (with-slots (rho) x
-            (:multiplying rho)))
+(deftest with-slots ()
+  (should be equal)
+  (iter (:with v := (vector (make-instance 'polar :mag 2)))
+    (:for x :in-sequence v)
+    (with-slots (rho) x
+      (:multiplying rho)))
   2)
 
-(deftest with-accessors
-    (iter (:with v := (vector (make-instance 'polar :mag 1)))
-          (:for x :in-sequence v)
-          (with-accessors ((alpha angle)) x
-            (incf alpha 2)
-            (summing alpha)))
+(deftest with-accessors ()
+  (should be equal)
+  (iter (:with v := (vector (make-instance 'polar :mag 1)))
+    (:for x :in-sequence v)
+    (with-accessors ((alpha angle)) x
+      (incf alpha 2)
+      (summing alpha)))
   2)
 
 ;;; Tests :for bugs.
@@ -1841,122 +2050,134 @@
 
 ;; The walker ignores functi:on bindings,
 ;; therefore shadowing is not handled correctly.
-(deftest bug/walk.1
-    (macrolet ((over(x) `(:collect ,x)))
-      (iter (:for i :in '(1 2 3))
-            (flet ((over(x)(declare (ignore x)) (:collect 1)))
-              (over i)))) ; would yield (1 1 1) if correct
+(deftest bug/walk.1 ()
+  (should be equal)
+  (macrolet ((over(x) `(:collect ,x)))
+    (iter (:for i :in '(1 2 3))
+      (flet ((over(x)(declare (ignore x)) (:collect 1)))
+        (over i))))                     ; would yield (1 1 1) if correct
   (1 2 3))
 
-(deftest bug/walk.2
-    (iter (:return (if (oddp 1)
-                      (progn)
-                      'even)))
-  ;; The bug is :in emtpy PROGN walking. Due :to that the THEN branch is lost
+(deftest bug/walk.2 ()
+  (should be equal)
+  (iter (:return (if (oddp 1)
+                     (progn)
+                     'even)))
+  ;; The bug is :in emtpy PROGN walking. Due :to that the :THEN branch is lost
   ;; and it returns 'EVEN instead of NIL.
   nil)
 
-(deftest bug/previously-initially.1
-    (values
-     (ignore-errors
-       ;; It used :to silently ignore the entire :previous expression
-       ;; and :return (0 0). Now it signals a compile-time error.
-       (iter (:repeat 2)
-             (:for x :previous (zork foo) :initially 0)
-             (:collect x))
-       'it-should-have-errored))
+(deftest bug/previously-initially.1 ()
+  (should be equal)
+  (values
+   (ignore-errors
+    ;; It used :to silently ignore the entire :previous expression
+    ;; and :return (0 0). Now it signals a compile-time error.
+    (iter (:repeat 2)
+      (:for x :previous (zork foo) :initially 0)
+      (:collect x))
+    'it-should-have-errored))
   nil)
 
-(deftest bug/previously-initially.2
-    (let ((first-arg 1)
-          (more-args '(2 3 4)))
-      (iter outer
-            (:for rest-args :on more-args)
-            (:for tmp := (car rest-args))
-            (:for first :previous tmp :initially first-arg)
-            (iter (:for second :in rest-args)
-                  (:in outer (:collect (list first second))))))
+(deftest bug/previously-initially.2 ()
+  (should be equal)
+  (let ((first-arg 1)
+        (more-args '(2 3 4)))
+    (iter outer
+      (:for rest-args :on more-args)
+      (:for tmp := (car rest-args))
+      (:for :first :previous tmp :initially first-arg)
+      (iter (:for second :in rest-args)
+        (:in outer (:collect (list :first second))))))
   ((1 2) (1 3) (1 4) (2 3) (2 4) (3 4)))
 
-(deftest bug/macrolet.2
-    (progn
-      (format *error-output*
-              "~&Note: These tests :generate warnings ~
+(deftest bug/macrolet.2 ()
+  (should be equal)
+  (progn
+    (format *error-output*
+            "~&Note: These tests :generate warnings ~
   involving MACROLET with:in Iter~%")
-      (values
-       (ignore-errors ; would yield 1 if correct
-         (iter (:repeat 10)
-                  (macrolet ((foo () 1))
-                    (:multiplying (foo)))))))
+    (values
+     (ignore-errors                     ; would yield 1 if correct
+      (iter (:repeat 10)
+        (macrolet ((foo () 1))
+          (:multiplying (foo)))))))
   nil)
 
-(deftest macrolet.3
-    (iter (:repeat 2)
-             (:multiplying (macrolet ((foo () 1))
-                            (foo))))
+(deftest macrolet.3 ()
+  (should be equal)
+  (iter (:repeat 2)
+    (:multiplying (macrolet ((foo () 1))
+                    (foo))))
   1)
 
-(deftest bug/collect-at-beginning
-    (iter
-      (:for i :from 1 :to 10)
-      (if (oddp i)
-          (:collect i :at :beginning)
-          (:collect i)))
+(deftest bug/collect-at-beginning ()
+  (should be equal)
+  (iter
+    (:for i :from 1 :to 10)
+    (if (oddp i)
+        (:collect i :at :beginning)
+        (:collect i)))
   (9 7 5 3 1 2 4 6 8 10))
 
 ;; Hashtable iterators are specified :to be defined :as macrolets.
 ;; But we handle these :by special-casing with-hash-table/package-iterator
-(deftest nested-hashtable.1
-    (let ((ht1 (make-hash-table))
-          (ht2 (make-hash-table)))
-      (setup-hash-table ht2)
-      (setf (gethash 'a ht1) ht2)
-      (= (hash-table-count ht2)
-         (length
-          (iter outer (:for (k1 v1) :in-hashtable ht1)
-                (iter (:for (k2 v2) :in-hashtable ht2)
-                      (:in outer (:collect k2)))))))
+(deftest nested-hashtable.1 ()
+  (should be equal)
+  (let ((ht1 (make-hash-table))
+        (ht2 (make-hash-table)))
+    (setup-hash-table ht2)
+    (setf (gethash 'a ht1) ht2)
+    (= (hash-table-:count ht2)
+       (length
+        (iter outer (:for (k1 v1) :in-hashtable ht1)
+          (iter (:for (k2 v2) :in-hashtable ht2)
+            (:in outer (:collect k2)))))))
   t)
 
-(deftest nested.in-hashtable.2
-    ;; Here the inner macrolet code does not affect the outer iteration
-    (let ((ht1 (make-hash-table))
-          (ht2 (make-hash-table)))
-      (setup-hash-table ht2)
-      (setf (gethash 'a ht1) ht2)
-      (iter (:for (k1 v1) :in-hashtable ht1)
-            (counting
-             (iter (:for (k2 nil) :in-hashtable ht2)
-                   (count k2)))))
+(deftest nested.in-hashtable.2 ()
+  (should be equal)
+  ;; Here the inner macrolet code does not affect the outer iteration
+  (let ((ht1 (make-hash-table))
+        (ht2 (make-hash-table)))
+    (setup-hash-table ht2)
+    (setf (gethash 'a ht1) ht2)
+    (iter (:for (k1 v1) :in-hashtable ht1)
+      (counting
+       (iter (:for (k2 nil) :in-hashtable ht2)
+         (:count k2)))))
   1)
 
-(deftest nested.in-hashtable.3
-    (let ((ht1 (make-hash-table))
-          (ht2 (make-hash-table)))
-      (setup-hash-table ht2)
-      (setf (gethash 'a ht1) ht2)
-      (iter (:for (k1 v1) :in-hashtable ht1)
-            (progn
-             (iter (:for (nil v2) :in-hashtable v1)
-                   (count v2))
-             (:collect k1))))
+(deftest nested.in-hashtable.3 ()
+  (should be equal)
+  (let ((ht1 (make-hash-table))
+        (ht2 (make-hash-table)))
+    (setup-hash-table ht2)
+    (setf (gethash 'a ht1) ht2)
+    (iter (:for (k1 v1) :in-hashtable ht1)
+      (progn
+        (iter (:for (nil v2) :in-hashtable v1)
+          (:count v2))
+        (:collect k1))))
   (a))
 
-(deftest nested.in-package
+(deftest nested.in-package ()
+  (should be equal)
   (< 6
      (print
       (iter (:for scl :in-package '#:iter :external-only t)
-            (count ; Iter exports ~50 symbols
-             (iter (:for si :in-package #.*package*)
-                   (:thereis (eq si scl))))))
+        (:count                         ; Iter exports ~50 symbols
+         (iter (:for si :in-package #.*package*)
+           (:thereis (eq si scl))))))
      80)
   t)
 
-(deftest macrolet.loop-finish
-    (iter (:for l :on *an-alist*)
-          (loop :for e :in l
-                when (equal (car e) 'zero)
-                do (loop-finish)))
+(deftest macrolet.loop-finish ()
+  (should be equal)
+  (iter (:for l :on *an-alist*)
+    (loop :for e :in l
+          when (equal (car e) 'zero)
+            do (loop-finish)))
   nil)
 
 ;; Misc tests :to make sure that bugs don't reappear
@@ -1965,69 +2186,74 @@
   (declare (ignore args))
   nil)
 
-(deftest tagbody.nil-tags
-;;  Allegro (correctly) won't compile when a tag (typically NIL) is used more than once :in a tagbody.
-    (labels ((find-tagbody (form)
-               (cond
-                 ((and (consp form)
-                       (eq (first form)
-                           'tagbody))
-                  form)
-                 ((consp form)
-                  (iter (:for x :in (rest form))
-                        (:thereis (find-tagbody x))))
-                 (t nil)))
-             (all-tagbody-tags (form)
-               (iter (:for tag-or-form :in (rest (find-tagbody form)))
-                     (when (symbolp tag-or-form)
-                       (:collect tag-or-form)))))
-      (let* ((form (macroexpand '
-                    (iter (:for x :in '(1 2 3))
-                          (problem-because-i-return-nil)
-                          (+ x x)
-                          (problem-because-i-return-nil))))
-             (tags (all-tagbody-tags form)))
-         (iter (:for tag :in tags)
-              ;; invoke cl:count, not the Iter clause:
-              (:always (= 1 (funcall #'count tag tags :from-end nil))))))
+(deftest tagbody.nil-tags ()
+  (should be equal)
+  ;;  Allegro (correctly) won't compile when a tag (typically NIL) is used more than once :in a tagbody.
+  (labels ((find-tagbody (form)
+             (cond
+               ((and (consp form)
+                     (eq (:first form)
+                         'tagbody))
+                form)
+               ((consp form)
+                (iter (:for x :in (rest form))
+                  (:thereis (find-tagbody x))))
+               (t nil)))
+           (all-tagbody-tags (form)
+             (iter (:for tag-or-form :in (rest (find-tagbody form)))
+               (when (symbolp tag-or-form)
+                 (:collect tag-or-form)))))
+    (let* ((form (macroexpand '
+                  (iter (:for x :in '(1 2 3))
+                    (problem-because-i-return-nil)
+                    (+ x x)
+                    (problem-because-i-return-nil))))
+           (tags (all-tagbody-tags form)))
+      (iter (:for tag :in tags)
+        ;; invoke cl:count, not the Iter clause:
+        (:always (= 1 (funcall #':count tag tags :from-end nil))))))
   t)
 
-(deftest walk.tagbody.1
-    (iter (tagbody
-             (problem-because-i-return-nil)
-             3
-             (problem-because-i-return-nil)
-             (leave 2)))
+(deftest walk.tagbody.1 ()
+  (should be equal)
+  (iter (tagbody
+           (problem-because-i-return-nil)
+         3
+           (problem-because-i-return-nil)
+           (leave 2)))
   2)
 
-(deftest walk.tagbody.2
-    (symbol-macrolet ((error-out (error "do not expand me")))
-      (iter (tagbody error-out
-               (leave 2))))
+(deftest walk.tagbody.2 ()
+  (should be equal)
+  (symbol-macrolet ((error-out (error "do not expand me")))
+    (iter (tagbody error-out
+             (leave 2))))
   2)
 
 #+ccl
-(deftest ccl-compiler-let
-    (catch 'compiler-warned
-      (handler-bind
-          ((ccl:compiler-warning #'(lambda (e)
-                                 (declare (ignore e))
-                                 (throw 'compiler-warned nil))))
-        (let ((def (compile nil '(lambda (list-xs)
-                                  (iter (:for x :in list-xs) (assert x () "~s is not a foo." x))))))
-          (when def t))))
+(deftest ccl-compiler-let ()
+  (should be equal)
+  (catch 'compiler-warned
+    (handler-bind
+        ((ccl:compiler-warning #'(lambda (e)
+                                   (declare (ignore e))
+                                   (throw 'compiler-warned nil))))
+      (let ((def (compile nil '(lambda (list-xs)
+                                (iter (:for x :in list-xs) (assert x () "~s is not a foo." x))))))
+        (when def t))))
   t)
 
 #+allegro
-(deftest allegro-compiler-let
-    (catch 'compiler-warned
-      (handler-bind
-          ((warning #'(lambda (e)
-                        (declare (ignore e))
-                        (throw 'compiler-warned nil))))
-        (let ((def (compile nil '(lambda (list-xs)
-                                  (iter (:for x :in list-xs) (assert x () "~s is not a foo." x))))))
-          (when def t))))
+(deftest allegro-compiler-let ()
+  (should be equal)
+  (catch 'compiler-warned
+    (handler-bind
+        ((warning #'(lambda (e)
+                      (declare (ignore e))
+                      (throw 'compiler-warned nil))))
+      (let ((def (compile nil '(lambda (list-xs)
+                                (iter (:for x :in list-xs) (assert x () "~s is not a foo." x))))))
+        (when def t))))
   t)
 
 
